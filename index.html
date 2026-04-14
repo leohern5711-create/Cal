@@ -1,0 +1,854 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Interpolación Numérica — Lagrange & Newton</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+:root {
+  --bg: #0d0f14;
+  --bg2: #13161e;
+  --bg3: #1a1e2a;
+  --bg4: #20253300;
+  --card: #161b26;
+  --card2: #1c2232;
+  --border: rgba(255,255,255,0.07);
+  --border2: rgba(255,255,255,0.12);
+  --text: #e8eaf2;
+  --text2: #8a90a8;
+  --text3: #555c78;
+  --lag: #6c8fff;
+  --lag2: #3a5ce0;
+  --lag-bg: rgba(108,143,255,0.1);
+  --lag-bg2: rgba(108,143,255,0.06);
+  --new: #3ed9a0;
+  --new2: #1aaa74;
+  --new-bg: rgba(62,217,160,0.1);
+  --new-bg2: rgba(62,217,160,0.06);
+  --acc: #f7c355;
+  --acc-bg: rgba(247,195,85,0.1);
+  --red: #ff6b8a;
+  --red-bg: rgba(255,107,138,0.1);
+  --r: 10px;
+  --r2: 6px;
+  --mono: 'DM Mono', monospace;
+  --serif: 'DM Serif Display', serif;
+  --sans: 'Outfit', sans-serif;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 1.6;
+  min-height: 100vh;
+}
+
+::selection { background: var(--lag-bg); color: var(--lag); }
+
+/* ── Header ──────────────────────────────────────────────────── */
+header {
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  padding: 1.5rem 2rem;
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.logo {
+  width: 40px; height: 40px;
+  background: linear-gradient(135deg, var(--lag), var(--new));
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--serif);
+  font-size: 20px;
+  color: #fff;
+  flex-shrink: 0;
+}
+header h1 {
+  font-family: var(--serif);
+  font-size: 1.3rem;
+  font-weight: 400;
+  letter-spacing: 0.01em;
+}
+header span {
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text2);
+  margin-left: 0.5rem;
+}
+
+/* ── Layout ──────────────────────────────────────────────────── */
+.main { max-width: 1100px; margin: 0 auto; padding: 2rem; display: grid; grid-template-columns: 340px 1fr; gap: 1.5rem; align-items: start; }
+
+/* ── Sidebar ─────────────────────────────────────────────────── */
+.sidebar { display: flex; flex-direction: column; gap: 1rem; position: sticky; top: 80px; }
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 1.25rem;
+}
+
+.card-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--text3);
+  margin-bottom: .75rem;
+}
+
+/* ── Method tabs ─────────────────────────────────────────────── */
+.method-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 1rem; }
+.mtab {
+  padding: 9px 8px;
+  border-radius: var(--r2);
+  border: 1px solid var(--border);
+  background: transparent;
+  cursor: pointer;
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text2);
+  transition: all .2s;
+  text-align: center;
+}
+.mtab:hover { border-color: var(--border2); color: var(--text); }
+.mtab.lag.on { background: var(--lag-bg); border-color: var(--lag); color: var(--lag); }
+.mtab.new.on { background: var(--new-bg); border-color: var(--new); color: var(--new); }
+
+/* ── Points table ────────────────────────────────────────────── */
+.pts-header { display: grid; grid-template-columns: 24px 1fr 1fr 28px; gap: 6px; margin-bottom: 5px; }
+.pts-header span { font-size: 11px; color: var(--text3); text-align: center; font-weight: 500; }
+.pts-list { display: flex; flex-direction: column; gap: 5px; margin-bottom: .75rem; max-height: 260px; overflow-y: auto; }
+.pts-list::-webkit-scrollbar { width: 4px; }
+.pts-list::-webkit-scrollbar-track { background: transparent; }
+.pts-list::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 4px; }
+
+.pt-row { display: grid; grid-template-columns: 24px 1fr 1fr 28px; gap: 6px; align-items: center; }
+.pt-idx {
+  font-size: 11px; color: var(--text3); text-align: center;
+  font-family: var(--mono);
+}
+.pt-row input {
+  width: 100%;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--r2);
+  padding: 6px 8px;
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 13px;
+  text-align: center;
+  transition: border-color .2s;
+}
+.pt-row input:focus { outline: none; border-color: var(--lag); }
+.del-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--r2);
+  color: var(--text3);
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+  width: 28px; height: 28px;
+  transition: all .15s;
+  display: flex; align-items: center; justify-content: center;
+}
+.del-btn:hover { background: var(--red-bg); border-color: var(--red); color: var(--red); }
+
+.btn-row { display: flex; gap: 6px; margin-bottom: .75rem; }
+.btn {
+  flex: 1;
+  padding: 8px 10px;
+  border-radius: var(--r2);
+  border: 1px solid var(--border);
+  background: transparent;
+  cursor: pointer;
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text2);
+  transition: all .15s;
+}
+.btn:hover { background: var(--bg3); border-color: var(--border2); color: var(--text); }
+.btn-load { border-color: var(--acc); color: var(--acc); background: var(--acc-bg); }
+.btn-load:hover { background: rgba(247,195,85,0.18); }
+
+/* ── Eval input ──────────────────────────────────────────────── */
+.eval-section { border-top: 1px solid var(--border); padding-top: 1rem; }
+.eval-label { font-size: 11px; color: var(--text2); margin-bottom: 6px; font-weight: 500; }
+.eval-row { display: flex; gap: 8px; align-items: center; }
+.eval-row input {
+  width: 90px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--r2);
+  padding: 8px 10px;
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 14px;
+  text-align: center;
+  transition: border-color .2s;
+}
+.eval-row input:focus { outline: none; border-color: var(--lag); }
+.eval-arrow { color: var(--text3); font-size: 16px; }
+.eval-result {
+  font-family: var(--mono);
+  font-size: 20px;
+  font-weight: 500;
+  color: var(--lag);
+  transition: color .2s;
+}
+.eval-result.new { color: var(--new); }
+
+.calc-btn {
+  width: 100%;
+  margin-top: .75rem;
+  padding: 10px;
+  border-radius: var(--r2);
+  border: none;
+  background: linear-gradient(135deg, var(--lag), var(--lag2));
+  color: #fff;
+  font-family: var(--sans);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity .15s, transform .1s;
+  letter-spacing: .02em;
+}
+.calc-btn.new-mode { background: linear-gradient(135deg, var(--new), var(--new2)); }
+.calc-btn:hover { opacity: .88; }
+.calc-btn:active { transform: scale(.98); }
+
+.err { font-size: 12px; color: var(--red); background: var(--red-bg); border-radius: var(--r2); padding: 6px 10px; margin-bottom: .5rem; border: 1px solid rgba(255,107,138,0.2); }
+
+/* ── Right panel ─────────────────────────────────────────────── */
+.panel { display: flex; flex-direction: column; gap: 1.25rem; }
+
+/* ── Section headers ─────────────────────────────────────────── */
+.sec-head {
+  display: flex; align-items: center; gap: .6rem;
+  margin-bottom: 1rem;
+}
+.sec-num {
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 600;
+  flex-shrink: 0;
+}
+.sec-num.lag { background: var(--lag-bg); color: var(--lag); border: 1px solid rgba(108,143,255,0.3); }
+.sec-num.new { background: var(--new-bg); color: var(--new); border: 1px solid rgba(62,217,160,0.3); }
+.sec-title { font-family: var(--serif); font-size: 1.05rem; font-weight: 400; }
+.badge {
+  margin-left: auto;
+  font-size: 11px; font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-family: var(--mono);
+}
+.badge.lag { background: var(--lag-bg); color: var(--lag); border: 1px solid rgba(108,143,255,0.25); }
+.badge.new { background: var(--new-bg); color: var(--new); border: 1px solid rgba(62,217,160,0.25); }
+
+/* ── Formula box ─────────────────────────────────────────────── */
+.formula {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--r2);
+  padding: .75rem 1rem;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  color: var(--lag);
+  line-height: 2;
+  word-break: break-all;
+  margin-bottom: .75rem;
+  white-space: pre-wrap;
+}
+.formula.new { color: var(--new); }
+
+/* ── Tables ──────────────────────────────────────────────────── */
+.tbl-wrap { overflow-x: auto; border-radius: var(--r2); border: 1px solid var(--border); margin-bottom: .75rem; }
+table { width: 100%; border-collapse: collapse; font-size: 12.5px; font-family: var(--mono); }
+th {
+  background: var(--bg3);
+  color: var(--text2);
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  padding: 8px 10px;
+  text-align: center;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+td {
+  padding: 7px 10px;
+  text-align: center;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+}
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: rgba(255,255,255,0.02); }
+td.hi-lag { color: var(--lag); font-weight: 500; background: var(--lag-bg2); }
+td.hi-new { color: var(--new); font-weight: 500; background: var(--new-bg2); }
+td.zero { color: var(--text3); }
+tr.total-row td { background: var(--bg3); border-top: 1px solid var(--border); font-weight: 600; }
+tr.total-row td.res-lag { color: var(--lag); font-size: 14px; }
+tr.total-row td.res-new { color: var(--new); font-size: 14px; }
+
+/* ── Steps ───────────────────────────────────────────────────── */
+.steps { display: flex; flex-direction: column; gap: 6px; margin-bottom: .75rem; }
+.step {
+  display: grid;
+  grid-template-columns: 80px 1fr 8px 1fr;
+  gap: 8px;
+  align-items: center;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--r2);
+  padding: 8px 12px;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+.step-label { color: var(--text3); font-size: 11px; font-weight: 600; }
+.step-op { color: var(--text2); }
+.step-arrow { color: var(--text3); text-align: center; font-size: 14px; }
+.step-res { color: var(--lag); font-weight: 500; }
+.step-res.new { color: var(--new); }
+
+/* ── Verification ────────────────────────────────────────────── */
+.verif-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 6px; }
+.verif-card {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--r2);
+  padding: 10px;
+  text-align: center;
+}
+.verif-card.ok-lag { border-color: rgba(108,143,255,0.3); background: var(--lag-bg2); }
+.verif-card.ok-new { border-color: rgba(62,217,160,0.3); background: var(--new-bg2); }
+.verif-x { font-size: 11px; color: var(--text3); font-family: var(--mono); margin-bottom: 3px; }
+.verif-val { font-size: 14px; font-weight: 500; font-family: var(--mono); }
+.verif-val.lag { color: var(--lag); }
+.verif-val.new { color: var(--new); }
+.verif-orig { font-size: 11px; color: var(--text2); margin-top: 2px; font-family: var(--mono); }
+.verif-check { font-size: 16px; margin-top: 4px; }
+
+/* ── Chart ───────────────────────────────────────────────────── */
+.chart-wrap { position: relative; height: 280px; }
+
+/* ── Poly expanded ───────────────────────────────────────────── */
+.poly-expanded {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--r2);
+  padding: .85rem 1rem;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text2);
+  line-height: 2;
+  word-break: break-all;
+}
+.poly-expanded strong { color: var(--acc); font-weight: 500; }
+
+/* ── Responsive ──────────────────────────────────────────────── */
+@media (max-width: 780px) {
+  .main { grid-template-columns: 1fr; padding: 1rem; }
+  .sidebar { position: static; }
+  header { padding: 1rem; }
+  header h1 { font-size: 1.1rem; }
+}
+
+/* ── Animate in ──────────────────────────────────────────────── */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.panel > * { animation: fadeUp .35s ease both; }
+.panel > *:nth-child(1) { animation-delay: .05s; }
+.panel > *:nth-child(2) { animation-delay: .1s; }
+.panel > *:nth-child(3) { animation-delay: .15s; }
+.panel > *:nth-child(4) { animation-delay: .2s; }
+.panel > *:nth-child(5) { animation-delay: .25s; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">∫</div>
+  <div>
+    <h1>Interpolación Numérica <span>Lagrange &amp; Newton</span></h1>
+  </div>
+</header>
+
+<div class="main">
+
+  <!-- ── Sidebar ──────────────────────────────────────────────── -->
+  <div class="sidebar">
+    <div class="card">
+      <div class="card-label">Método</div>
+      <div class="method-tabs">
+        <button class="mtab lag on" onclick="switchMethod('lag')">Lagrange</button>
+        <button class="mtab new" onclick="switchMethod('new')">Newton</button>
+      </div>
+
+      <div class="card-label">Puntos (xᵢ, f(xᵢ))</div>
+      <div class="pts-header">
+        <span>#</span><span>x</span><span>f(x)</span><span></span>
+      </div>
+      <div class="pts-list" id="pts-list"></div>
+
+      <div class="btn-row">
+        <button class="btn" onclick="addPoint()">+ Punto</button>
+        <button class="btn btn-load" onclick="loadExample()">★ Ejemplo</button>
+      </div>
+
+      <div id="err-msg"></div>
+
+      <div class="eval-section">
+        <div class="eval-label">Evaluar P(x) en:</div>
+        <div class="eval-row">
+          <span style="color:var(--text2);font-family:var(--mono)">x =</span>
+          <input type="number" id="eval-x" value="1" step="any">
+          <span class="eval-arrow">→</span>
+          <span class="eval-result" id="eval-out">—</span>
+        </div>
+        <button class="calc-btn" id="calc-btn" onclick="compute()">Calcular</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Right panel ──────────────────────────────────────────── -->
+  <div class="panel" id="panel"></div>
+</div>
+
+<script>
+let method = 'lag';
+let chartInst = null;
+let points = [{x:-3,y:-125},{x:-2,y:-104},{x:-1,y:-80},{x:0,y:1},{x:2,y:14},{x:4,y:28},{x:6,y:45}];
+
+// ── Math ────────────────────────────────────────────────────────────────────
+function Li(i, x, xs) {
+  let n=1, d=1;
+  for(let j=0;j<xs.length;j++) if(j!==i){n*=(x-xs[j]);d*=(xs[i]-xs[j]);}
+  return d===0?0:n/d;
+}
+function lagrange(xs,ys,x){ return xs.reduce((s,_,i)=>s+ys[i]*Li(i,x,xs),0); }
+
+function divDiff(xs,ys){
+  const n=xs.length, t=ys.map(v=>[v]);
+  for(let j=1;j<n;j++) for(let i=0;i<n-j;i++) t[i].push((t[i+1][j-1]-t[i][j-1])/(xs[i+j]-xs[i]));
+  return t;
+}
+function newton(xs,ys,x){
+  const dd=divDiff(xs,ys), c=xs.map((_,i)=>dd[0][i]);
+  let res=c[0],prod=1;
+  for(let i=1;i<xs.length;i++){prod*=(x-xs[i-1]);res+=c[i]*prod;}
+  return res;
+}
+
+function expandPoly(xs,ys){
+  function mulFactor(p,root){
+    const r=new Array(p.length+1).fill(0);
+    for(let i=0;i<p.length;i++){r[i]+=-root*p[i];r[i+1]+=p[i];}
+    return r;
+  }
+  const n=xs.length;
+  // via Newton coefficients for accuracy
+  const dd=divDiff(xs,ys), c=xs.map((_,i)=>dd[0][i]);
+  let poly=new Array(n).fill(0); poly[0]=c[0];
+  let basis=[1];
+  for(let k=1;k<n;k++){
+    basis=mulFactor(basis,xs[k-1]);
+    for(let j=0;j<=k;j++) poly[j]+=c[k]*basis[j];
+  }
+  while(poly.length>1&&Math.abs(poly[poly.length-1])<1e-9) poly.pop();
+  return poly;
+}
+
+// Numerator expansion for Li step by step
+function expandLiNumerator(i,xs){
+  const others=xs.filter((_,j)=>j!==i);
+  let poly=[1];
+  const steps=[];
+  for(let k=0;k<others.length;k++){
+    const root=others[k];
+    const newPoly=new Array(poly.length+1).fill(0);
+    for(let j=0;j<poly.length;j++){newPoly[j]+=-root*poly[j];newPoly[j+1]+=poly[j];}
+    poly=newPoly;
+    steps.push({op:`× (x ${root>=0?'− '+root:'+ '+Math.abs(root)})`, result:[...poly]});
+  }
+  return {steps, final:poly};
+}
+
+function liDenominator(i,xs){
+  let d=1,parts=[];
+  for(let j=0;j<xs.length;j++) if(j!==i){const v=xs[i]-xs[j];parts.push(v);d*=v;}
+  return {value:d,parts};
+}
+
+// ── Formatting ──────────────────────────────────────────────────────────────
+function f(v,dp=5){ if(isNaN(v)||!isFinite(v)) return '—'; const r=parseFloat(v.toFixed(dp)); return r.toString(); }
+function f4(v){ return f(v,4); }
+function f8(v){ return f(v,8); }
+
+function polyToStr(poly,dp=6){
+  const terms=[];
+  for(let i=poly.length-1;i>=0;i--){
+    const c=poly[i];
+    if(Math.abs(c)<1e-9) continue;
+    const cf=parseFloat(c.toFixed(dp));
+    const sign=cf>=0?(terms.length?'+ ':''):'− ';
+    const abs=Math.abs(cf).toFixed(dp);
+    if(i===0) terms.push(sign+abs);
+    else if(i===1) terms.push(sign+abs+'x');
+    else terms.push(sign+abs+'x'+sup(i));
+  }
+  return terms.length?terms.join(' '):'0';
+}
+
+function sup(n){const m={'0':'⁰','1':'¹','2':'²','3':'³','4':'⁴','5':'⁵','6':'⁶','7':'⁷','8':'⁸','9':'⁹'};return String(n).split('').map(c=>m[c]||c).join('');}
+function sub(n){const m={'0':'₀','1':'₁','2':'₂','3':'₃','4':'₄','5':'₅','6':'₆','7':'₇','8':'₈','9':'₉'};return String(n).split('').map(c=>m[c]||c).join('');}
+
+function polyToHtml(poly,dp=6,cls=''){
+  const terms=[];
+  for(let i=poly.length-1;i>=0;i--){
+    const c=poly[i];
+    if(Math.abs(c)<1e-9) continue;
+    const cf=parseFloat(c.toFixed(dp));
+    const sign=cf>=0?(terms.length?'+ ':''):'<span style="color:var(--red)">− </span>';
+    const abs=Math.abs(cf).toFixed(dp);
+    let term='';
+    if(i===0) term=abs;
+    else if(i===1) term=abs+'x';
+    else term=abs+'x<sup>'+i+'</sup>';
+    terms.push(sign+`<span class="${cls}">`+term+'</span>');
+  }
+  return terms.length?terms.join(' '):'0';
+}
+
+// ── UI helpers ──────────────────────────────────────────────────────────────
+function switchMethod(m){
+  method=m;
+  document.querySelectorAll('.mtab').forEach(b=>b.classList.remove('on'));
+  document.querySelector('.mtab.'+m).classList.add('on');
+  document.getElementById('calc-btn').className='calc-btn'+(m==='new'?' new-mode':'');
+  document.getElementById('eval-out').className='eval-result'+(m==='new'?' new':'');
+  compute();
+}
+
+function renderPts(){
+  document.getElementById('pts-list').innerHTML=points.map((p,i)=>`
+    <div class="pt-row">
+      <div class="pt-idx">${sub(i)}</div>
+      <input type="number" step="any" value="${p.x}" oninput="updatePt(${i},'x',this.value)">
+      <input type="number" step="any" value="${p.y}" oninput="updatePt(${i},'y',this.value)">
+      <button class="del-btn" onclick="delPt(${i})" title="Eliminar">×</button>
+    </div>`).join('');
+}
+function updatePt(i,k,v){points[i][k]=parseFloat(v);compute();}
+function addPoint(){points.push({x:0,y:0});renderPts();compute();}
+function delPt(i){if(points.length<=2)return;points.splice(i,1);renderPts();compute();}
+function loadExample(){
+  points=[{x:-3,y:-125},{x:-2,y:-104},{x:-1,y:-80},{x:0,y:1},{x:2,y:14},{x:4,y:28},{x:6,y:45}];
+  renderPts();compute();
+}
+
+function setErr(msg){
+  document.getElementById('err-msg').innerHTML=msg?`<div class="err">${msg}</div>`:'';
+}
+
+// ── Main compute ─────────────────────────────────────────────────────────────
+function compute(){
+  const valid=points.filter(p=>!isNaN(p.x)&&!isNaN(p.y)&&isFinite(p.x)&&isFinite(p.y));
+  const xs=valid.map(p=>p.x), ys=valid.map(p=>p.y);
+  setErr('');
+  if(valid.length<2){setErr('Se necesitan al menos 2 puntos válidos.');return;}
+  if(new Set(xs).size<xs.length){setErr('Los valores de x deben ser distintos entre sí.');return;}
+
+  const evalX=parseFloat(document.getElementById('eval-x').value);
+  const n=xs.length;
+  const isLag=method==='lag';
+  const col=isLag?'lag':'new';
+  const pxLag=lagrange(xs,ys,evalX);
+  const pxNew=newton(xs,ys,evalX);
+  const px=isLag?pxLag:pxNew;
+  const expandedPoly=expandPoly(xs,ys);
+
+  // Eval result
+  document.getElementById('eval-out').textContent=isNaN(px)?'—':f8(px);
+
+  const panel=document.getElementById('panel');
+
+  // ── Build HTML ────────────────────────────────────────────────────────────
+  let html='';
+
+  // ── SECTION 1: Fórmula general ────────────────────────────────────────────
+  if(isLag){
+    html+=`<div class="card">
+      <div class="sec-head">
+        <div class="sec-num lag">1</div>
+        <div class="sec-title">Fórmula general de Lagrange</div>
+      </div>
+      <div class="formula">P(x) = Σ f(xᵢ) · Lᵢ(x)
+
+         ∏ (x − xⱼ)   j ≠ i
+Lᵢ(x) = ──────────────────────
+         ∏ (xᵢ − xⱼ)  j ≠ i</div>
+    </div>`;
+  } else {
+    html+=`<div class="card">
+      <div class="sec-head">
+        <div class="sec-num new">1</div>
+        <div class="sec-title">Fórmula general de Newton</div>
+      </div>
+      <div class="formula new">P(x) = f[x₀] + f[x₀,x₁](x−x₀) + f[x₀,x₁,x₂](x−x₀)(x−x₁) + ···
+
+f[xᵢ,xᵢ₊₁,…,xᵢ₊ₖ] = (f[xᵢ₊₁,…,xᵢ₊ₖ] − f[xᵢ,…,xᵢ₊ₖ₋₁]) / (xᵢ₊ₖ − xᵢ)</div>
+    </div>`;
+  }
+
+  // ── SECTION 2: Tabla de diferencias divididas o bases ─────────────────────
+  if(isLag){
+    // Bases Li + desarrollo de numerador
+    html+=`<div class="card">
+      <div class="sec-head">
+        <div class="sec-num lag">2</div>
+        <div class="sec-title">Bases de Lagrange Lᵢ(x)</div>
+        <span class="badge lag">n = ${n} puntos · grado ≤ ${n-1}</span>
+      </div>`;
+
+    for(let i=0;i<n;i++){
+      const {steps:numSteps, final:numPoly}=expandLiNumerator(i,xs);
+      const {value:denVal, parts:denParts}=liDenominator(i,xs);
+      const liStr=polyToStr(numPoly)+'  /  '+denVal;
+
+      html+=`<div style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--r2);padding:1rem;margin-bottom:.75rem">
+        <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.75rem">
+          <span style="font-family:var(--mono);font-size:13px;color:var(--lag);font-weight:500">L${sub(i)}(x)</span>
+          <span style="color:var(--text3);font-size:12px">nodo x${sub(i)} = ${xs[i]},  f(x${sub(i)}) = ${ys[i]}</span>
+        </div>`;
+
+      // Factores
+      const factors=xs.filter((_,j)=>j!==i).map(xj=>`(x ${xj>=0?'− '+xj:'+ '+Math.abs(xj)})`).join(' · ');
+      html+=`<div style="font-size:12px;color:var(--text2);margin-bottom:.5rem;font-family:var(--mono)">Factores: <span style="color:var(--text)">${factors}</span></div>`;
+
+      // Steps numerador
+      html+=`<div style="font-size:11px;color:var(--text3);font-weight:600;letter-spacing:.05em;text-transform:uppercase;margin-bottom:5px">Desarrollo del numerador</div>
+      <div class="steps">`;
+      let cur='1';
+      for(let k=0;k<numSteps.length;k++){
+        const s=numSteps[k];
+        const res=polyToStr(s.result,0);
+        html+=`<div class="step">
+          <span class="step-label">Paso ${k+1}</span>
+          <span class="step-op">${k===0?factors.split(' · ')[0]:cur} ${k===0?'':s.op}</span>
+          <span class="step-arrow">→</span>
+          <span class="step-res">${res}</span>
+        </div>`;
+        cur=res;
+      }
+      html+=`</div>`;
+
+      // Denominador
+      const denStr=denParts.map(v=>`(${v})`).join(' · ')+' = '+denVal;
+      html+=`<div style="font-size:11px;color:var(--text3);font-weight:600;letter-spacing:.05em;text-transform:uppercase;margin:.5rem 0 4px">Denominador</div>
+      <div style="font-family:var(--mono);font-size:12px;color:var(--text2);background:var(--bg);border:1px solid var(--border);border-radius:var(--r2);padding:6px 10px;margin-bottom:.5rem">${denStr}</div>`;
+
+      // Final Li
+      html+=`<div style="font-size:11px;color:var(--text3);font-weight:600;letter-spacing:.05em;text-transform:uppercase;margin:.5rem 0 4px">L${sub(i)}(x) completa</div>
+      <div class="formula" style="margin:0;font-size:12px">L${sub(i)}(x) = [ ${polyToStr(numPoly,0)} ] / ${denVal}
+Contribución: ${ys[i]} · L${sub(i)}(x)</div>`;
+
+      html+=`</div>`;
+    }
+    html+=`</div>`;
+
+  } else {
+    // Newton: tabla diferencias divididas
+    const dd=divDiff(xs,ys);
+    html+=`<div class="card">
+      <div class="sec-head">
+        <div class="sec-num new">2</div>
+        <div class="sec-title">Tabla de diferencias divididas</div>
+        <span class="badge new">orden 0 → ${n-1}</span>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>xᵢ</th><th>f[xᵢ]</th>`;
+    for(let j=1;j<n;j++) html+=`<th>Orden ${j}</th>`;
+    html+=`</tr></thead><tbody>`;
+    for(let i=0;i<n;i++){
+      html+=`<tr><td>${f4(xs[i])}</td>`;
+      for(let j=0;j<n;j++){
+        if(j<n-i){
+          const v=dd[i][j];
+          const isCoeff=i===0;
+          html+=`<td class="${isCoeff?'hi-new':''}">${Math.abs(v)<1e-9?'<span class="zero">0</span>':f4(v)}</td>`;
+        } else html+=`<td class="zero">—</td>`;
+      }
+      html+=`</tr>`;
+    }
+    html+=`</tbody></table></div>`;
+
+    // Coeficientes de Newton
+    const coeffs=xs.map((_,i)=>dd[0][i]);
+    html+=`<div style="font-size:11px;color:var(--text3);font-weight:600;letter-spacing:.05em;text-transform:uppercase;margin:.75rem 0 4px">Coeficientes (primera fila diagonal)</div>
+    <div class="formula new" style="font-size:12px">`;
+    for(let i=0;i<n;i++){
+      if(Math.abs(coeffs[i])>1e-9) html+=`a${sub(i)} = f[x${sub(0)},...,x${sub(i)}] = ${f4(coeffs[i])}\n`;
+    }
+    html+=`</div>`;
+
+    // Forma de Newton
+    html+=`<div style="font-size:11px;color:var(--text3);font-weight:600;letter-spacing:.05em;text-transform:uppercase;margin:.75rem 0 4px">Polinomio en forma de Newton</div>
+    <div class="formula new" style="font-size:12px">P(x) = `;
+    const newTerms=[f4(coeffs[0])];
+    for(let i=1;i<n;i++){
+      if(Math.abs(coeffs[i])<1e-9) continue;
+      const factors=xs.slice(0,i).map(xj=>`(x ${xj>=0?'− '+xj:'+ '+Math.abs(xj)})`).join('·');
+      newTerms.push(`${f4(coeffs[i])}·${factors}`);
+    }
+    html+=newTerms.join('\n   + ').replace(/\+ -/g,'− ')+'</div>';
+    html+=`</div>`;
+  }
+
+  // ── SECTION 3: Evaluación paso a paso ─────────────────────────────────────
+  if(!isNaN(evalX)){
+    if(isLag){
+      html+=`<div class="card">
+        <div class="sec-head">
+          <div class="sec-num lag">3</div>
+          <div class="sec-title">Evaluación en x = ${evalX}</div>
+        </div>
+        <div class="tbl-wrap"><table>
+          <thead><tr><th>i</th><th>xᵢ</th><th>f(xᵢ)</th><th>Lᵢ(${evalX})</th><th>f(xᵢ)·Lᵢ(${evalX})</th></tr></thead>
+          <tbody>`;
+      let total=0;
+      for(let i=0;i<n;i++){
+        const li=Li(i,evalX,xs), contrib=ys[i]*li;
+        total+=contrib;
+        html+=`<tr><td>${i}</td><td>${f4(xs[i])}</td><td>${f4(ys[i])}</td><td class="hi-lag">${f4(li)}</td><td>${f4(contrib)}</td></tr>`;
+      }
+      html+=`<tr class="total-row"><td colspan="4" style="text-align:right;color:var(--text2)">P(${evalX}) =</td><td class="res-lag">${f8(total)}</td></tr>`;
+      html+=`</tbody></table></div></div>`;
+
+    } else {
+      const dd=divDiff(xs,ys), coeffs=xs.map((_,i)=>dd[0][i]);
+      html+=`<div class="card">
+        <div class="sec-head">
+          <div class="sec-num new">3</div>
+          <div class="sec-title">Evaluación en x = ${evalX}</div>
+        </div>
+        <div class="steps">`;
+      let prod=1, acc=coeffs[0];
+      html+=`<div class="step"><span class="step-label">Término 0</span><span class="step-op">a₀ = ${f4(coeffs[0])}</span><span class="step-arrow">→</span><span class="step-res new">${f4(acc)}</span></div>`;
+      for(let i=1;i<n;i++){
+        if(Math.abs(coeffs[i])<1e-9) continue;
+        prod*=(evalX-xs[i-1]);
+        const t=coeffs[i]*prod;
+        acc+=t;
+        const fStr=xs.slice(0,i).map(xj=>`(${evalX}${xj>=0?' − '+xj:' + '+Math.abs(xj)})`).join('·');
+        html+=`<div class="step"><span class="step-label">Término ${i}</span><span class="step-op">${f4(coeffs[i])}·${fStr} = ${f4(t)}</span><span class="step-arrow">→</span><span class="step-res new">Σ = ${f4(acc)}</span></div>`;
+      }
+      html+=`</div>
+        <div style="text-align:right;font-family:var(--mono);font-size:16px;color:var(--new);padding:.5rem 1rem;background:var(--new-bg2);border-radius:var(--r2);border:1px solid rgba(62,217,160,0.2)">
+          P(${evalX}) = ${f8(pxNew)}
+        </div></div>`;
+    }
+  }
+
+  // ── SECTION 4: Polinomio expandido ────────────────────────────────────────
+  html+=`<div class="card">
+    <div class="sec-head">
+      <div class="sec-num ${col}">${isLag?4:4}</div>
+      <div class="sec-title">Polinomio expandido</div>
+    </div>
+    <div style="font-size:11px;color:var(--text3);font-weight:600;letter-spacing:.05em;text-transform:uppercase;margin-bottom:6px">Forma estándar aₙxⁿ + ··· + a₀</div>
+    <div class="poly-expanded">P(x) = ${polyToHtml(expandedPoly,8,col)}</div>
+    <div style="margin-top:.75rem;font-size:11px;color:var(--text3);font-weight:600;letter-spacing:.05em;text-transform:uppercase;margin-bottom:6px">Para copiar en calculadora</div>
+    <div class="formula" style="font-size:11.5px;word-break:break-all;color:var(--acc)">${polyToStr(expandedPoly,8)}</div>
+  </div>`;
+
+  // ── SECTION 5: Comprobación en nodos ──────────────────────────────────────
+  html+=`<div class="card">
+    <div class="sec-head">
+      <div class="sec-num ${col}">5</div>
+      <div class="sec-title">Comprobación en los ${n} nodos</div>
+    </div>
+    <div class="verif-grid">`;
+  for(let i=0;i<n;i++){
+    const calc=isLag?lagrange(xs,ys,xs[i]):newton(xs,ys,xs[i]);
+    const ok=Math.abs(calc-ys[i])<0.001;
+    html+=`<div class="verif-card ${ok?'ok-'+col:''}">
+      <div class="verif-x">x = ${xs[i]}</div>
+      <div class="verif-val ${col}">${f4(calc)}</div>
+      <div class="verif-orig">esperado: ${ys[i]}</div>
+      <div class="verif-check">${ok?'✓':'✗'}</div>
+    </div>`;
+  }
+  html+=`</div></div>`;
+
+  // ── SECTION 6: Gráfica ────────────────────────────────────────────────────
+  html+=`<div class="card">
+    <div class="sec-head">
+      <div class="sec-num ${col}">6</div>
+      <div class="sec-title">Gráfica del polinomio interpolante</div>
+    </div>
+    <div class="chart-wrap"><canvas id="chart"></canvas></div>
+  </div>`;
+
+  panel.innerHTML=html;
+
+  // Render chart
+  const mn=Math.min(...xs)-1, mx=Math.max(...xs)+1;
+  const xv=[], yL=[], yN=[];
+  for(let k=0;k<=300;k++){
+    const x=mn+(mx-mn)*k/300;
+    xv.push(parseFloat(x.toFixed(4)));
+    yL.push(parseFloat(lagrange(xs,ys,x).toFixed(6)));
+    yN.push(parseFloat(newton(xs,ys,x).toFixed(6)));
+  }
+  if(chartInst) chartInst.destroy();
+  const ctx=document.getElementById('chart').getContext('2d');
+  chartInst=new Chart(ctx,{
+    type:'line',
+    data:{datasets:[
+      {label:'Lagrange',data:xv.map((x,k)=>({x,y:yL[k]})),borderColor:'#6c8fff',borderWidth:2.5,pointRadius:0,tension:0.3,fill:false},
+      {label:'Newton',data:xv.map((x,k)=>({x,y:yN[k]})),borderColor:'#3ed9a0',borderWidth:2,borderDash:[6,4],pointRadius:0,tension:0.3,fill:false},
+      {label:'Puntos dados',data:xs.map((x,i)=>({x,y:ys[i]})),type:'scatter',backgroundColor:'#f7c355',borderColor:'#f7c355',pointRadius:7,pointHoverRadius:9},
+    ]},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{
+        legend:{labels:{color:'#8a90a8',font:{size:12,family:'Outfit'},boxWidth:18,padding:16}},
+        tooltip:{backgroundColor:'#1c2232',titleColor:'#e8eaf2',bodyColor:'#8a90a8',borderColor:'rgba(255,255,255,0.07)',borderWidth:1}
+      },
+      scales:{
+        x:{type:'linear',grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#555c78',font:{size:11}}},
+        y:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#555c78',font:{size:11}}},
+      }
+    }
+  });
+}
+
+// ── Init ────────────────────────────────────────────────────────────────────
+renderPts();
+compute();
+</script>
+</body>
+</html>
